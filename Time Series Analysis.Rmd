@@ -1,0 +1,230 @@
+
+## Question 1: Create time series object from the bike sharing data with frequency 7.  Fit the simple exponential smoothing (ses) model to the bike sharing data with alpha = 0.25 and initial value equal to the first value of count (cnt) in the series.  Compare the result of this model to the ses model with both parameters optimized.  Which is a better fit?  Why?
+
+Answer: 
+Examining the RMSE of both models, the optimized model has a slightly better fit with a RMSE of 964.52 while the other has a RMSE of 965.02. Because optimized parameters allow the algorithm to auto select the options that will receive the best accuracy. 
+
+```{r}
+# library
+library(fpp2)
+
+# import csv
+data1 <- read.csv('hw5_bike_share_day.csv')
+
+# Time series object
+ts <- ts(data1[,14], start = 1, frequency = 7)
+autoplot(ts)
+decompose(ts)
+# SES (Not Optimized)
+ses.1 <- ses(ts, alpha = 0.25, initial = "simple", h=8)
+round(accuracy(ses.1), digits = 2)
+
+# SES (Optimized)
+ses.2 <- ses(ts, h=8)
+round(accuracy(ses.2), digits = 2)
+
+```
+
+## Question 2: Fit Holt’s model with the bike sharing data. Compare the results of this model with the best model from part a. Which is a better fit? Why?
+
+Answer:
+
+Compared with the best model from part a, which has a RMSE score of 964.52, Holt's model has a slightly larger RMSE. Hence, Holt's method model is a better fit. 
+
+```{r}
+holt <- holt(ts, h = 5)
+summary(holt)
+
+```
+
+## Question 3: Fit Holt-Winters’ seasonal method using both additive, multiplicative, and damped multiplicative methods.  Which of these models is preferred? How did this model compare to the models from questions 1 and 2?  Are the results surprising?  Explain.
+
+Because both methods have exactly the same number of parameters to estimate, we can compare the RMSE from all the models in this question. In this case, the method with damped multiplicative seasonality has the lowest RMSE score.
+As we can see, there is seasonality and trend presenting in the time series object. When both are present (Trend and Seasonality), it is better to use Holt-Winter's method. 
+
+
+```{r}
+# Fitting Holt-Winters' method
+HW1 <- hw(ts, seasonal = "additive")
+HW2 <- hw(ts, seasonal = "multiplicative")
+HW3 <- hw(ts, seasonal = "multiplicative", damped = TRUE)
+
+# RMSE
+RMSE_mean <- (mean((ts - mean(ts))^2))^0.5 
+RMSE_AS_add <- (mean((ts - HW1$fitted)^2))^0.5
+RMSE_AS_mult <- (mean((ts - HW2$fitted)^2))^0.5
+RMSE_AS_Dmult <- (mean((ts - HW3$fitted)^2))^0.5
+RMSE_mean
+RMSE_AS_add
+RMSE_AS_mult
+RMSE_AS_Dmult
+
+# plotting it
+autoplot(ts) +
+  autolayer(HW1$fitted, series = "HW-Additive Season") + guides(color=guide_legend(title="Forecasts"))
+autoplot(ts) +
+  autolayer(HW2$fitted, series = "HW-Multiplicative Season") + guides(color=guide_legend(title="Forecasts"))
+autoplot(ts) +
+  autolayer(HW3$fitted, series = "HW-Damped-Multi Season")+
+  guides(color=guide_legend(title="Forecasts"))
+
+
+
+```
+## Question 4: Create forecasts for the preferred model from questions 1-3 for the next 4 weeks.  Display the values of the forecasts to the console and plot the forecasts on a time-oriented graph.     
+
+
+```{r}
+forcast <- hw(ts, seasonal = "multiplicative", damped = TRUE, h=28)
+summary(forcast)
+autoplot(forcast, series = "Bike Rental") +
+  autolayer(forcast, series = "Forecasts") +
+  ggtitle("Forecasts") + 
+  ylab("Number of Rental Bikes") +
+  xlab("Day")
+
+
+```
+
+## Question 5: Built into R package fpp2 are a number of data sets.  To see all the data sets built into to this suite of packages use the “data()” command.  To load data set “dat1” into RStudio, use “fix(dat1)” comment in R.  To obtain additional information about the data set, dat1, use “?dat1”.  Load the Johnson and Johnson data set (JohnsonJohnson).  Describe this data.  What is the data range?  How many observations?  What is periodicity of this data set?  Run the “AAA” ETS model on the earnings for Johnson and Johnson.  Report the coefficients and the fit of the model.  Plot the three model components.
+
+The data ranges from 0.44 to 16.2 and it has a total of 84 observations. It is quarterly data about Johnson & Johnson earning share. 
+
+```{r}
+fix(JohnsonJohnson)
+dat1 <- JohnsonJohnson
+autoplot(dat1)
+fix(dat1)
+
+summary(dat1)
+# ETS Model (AAA)
+ETS_AAA <- ets(dat1, model = 'AAA', damped = TRUE)
+
+# Visualization
+autoplot(dat1, series = "Bike Rental") +
+  autolayer(fitted(ETS_AAA), series = "AAA")
+
+autoplot(ETS_AAA)
+
+#
+coef(ETS_AAA)
+fitted(ETS_AAA)
+summary(ETS_AAA)
+
+
+```
+
+## Question 6: Compute the “best” ETS model on the Johnson and Johnson data.  Select the model that is preferred from questions 5 and 6.  Explain why the chosen model is preferred.      
+
+The "best" model is AAA (damped) because it has a lowest RMSE score of 0.44. 
+
+```{r}
+# Fitting ETS Models
+ETS_MAM <- ets(dat1, model = 'MAM', damped = TRUE)
+summary(ETS_MAM)
+#
+ETS_ANN <- ets(dat1, model = 'ANN')
+summary(ETS_ANN)
+#
+ETS_AAN <- ets(dat1, model = 'AAN')
+summary(ETS_AAN)
+
+
+# MAM performs the best
+autoplot(ts, series = "Bike Rental") + autolayer(fitted(ETS_MAM), series = "MAM")
+
+
+
+```
+
+
+
+## Question 7: How is the model selected in question 6?  That is, how does the cross-validation process work for time series data?  Explain in a few sentences.
+
+The model is selected based on the RMSE score. For a model to be accuracy, the RMSE score should be low. To use cross validation in time series data, we start with dataset and roll and fit through the end. Because time series data are dependent since it is time sensitive. 
+
+fold 1: training[1], test[2]
+fold 2: training[1,2], test[3]
+fold 3: training[1,2,3], test[4]
+fold 4: training[1,2,3,4], test[4]
+fold 5: training[1,2,3,4,5], test[5]
+
+
+## Question 8: Compute the “best” ETS model on the monthly debit card use in Iceland (data set “debitcards”).  What model was chosen?  What are the associated parameters?  Display the model components (chart).  Make forecasts with 80% confidence bands for the next two years using the chosen model.  Graph the data and the forecasts.  
+
+MAM is the "best" ETS model because it has the lowest RMSE score of 0.726. Here are the associated parameters: alpha = 0.3383, beta = 0.01, gamma = 13-04, phi = 0.98
+
+
+```{r}
+fix(debitcards)
+dat2 <- debitcards
+autoplot(dat2)
+fix(dat2)
+
+# ETS Models
+ETS_MAM_2 <- ets(dat2, model = 'MAM', damped = TRUE)
+summary(ETS_MAM_2)
+autoplot(decompose(dat2))
+
+#
+ETS_ANN_2 <- ets(dat2, model = 'ANN')
+summary(ETS_ANN_2)
+#
+ETS_AAN_2 <- ets(dat2, model = 'ANN')
+summary(ETS_AAN_2)
+#
+ETS_AAA_2 <- ets(dat2, model = 'AAA')
+summary(ETS_AAA_2)
+
+# Forcast
+ETS_forecast <- forecast(ETS_MAM_2, level = 80)
+
+autoplot(ETS_forecast) +
+  ggtitle("Debit Card Use Forecasts") 
+
+```
+
+
+## Question 9: Compute the “best” ETS model on the Google closing price data (data set “goog”).  What model was chosen?  What are the associated parameters?  Display the model components.  Make forecasts for the next 30 days using the chosen model.  Graph the data and the forecasts.  
+
+The "best" model is ANN model with a RMSE score of 8.724. The parameters are alpha = 0.9999 and beta  = 1e-04. 
+
+```{r}
+fix(goog)
+dat3 <- goog
+autoplot(dat3)
+fix(dat3)
+
+# ETS Models
+ETS_MAM_3 <- ets(dat3, model = 'MAN', damped = TRUE)
+summary(ETS_MAM_3)
+#
+ETS_ANN_3 <- ets(dat3, model = 'ANN')
+summary(ETS_ANN_3)
+#
+ETS_ANN_3 <- ets(dat3, model = 'ANN')
+summary(ETS_ANN_3)
+#
+ETS_AAN_3 <- ets(dat3, model = 'AAN')
+summary(ETS_AAN_3)
+
+# Forcast
+ETS_forecast_3 <- forecast(ETS_ANN_3, level = 80)
+
+autoplot(ETS_forecast_3) +
+  ggtitle("Google Forecasts") 
+
+```
+
+## Question 10.	Compare the results of question 9 with a “best” ARIMA model.  Which technique works better?  What is the chosen model?  Why did you choose that model?  What are the model’s parameters?  What is the model error?  Hint:  Use command “auto.arima(goog)” to run the automated ARIMA model selection in R.  See Chapter 8 in Hyndman for information on interpreting the results.
+
+The ANN model works better here and it is because the ARIMA p-value is 0.15 which is way bigger than the alpha value; therefore, this model is not significant. The parameters are ARIMA(0,1,0). Also the RMSE score of ARIMA is not as low as the ANN model 
+
+
+```{r}
+
+ARIMA <- auto.arima(dat3)
+summary(ARIMA)
+checkresiduals(ARIMA)
+
+```
